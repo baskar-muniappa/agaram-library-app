@@ -1,0 +1,129 @@
+import os
+import re
+import torch
+from datetime import datetime
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from peft import PeftModel
+
+# === CONFIG ===
+base_model = "TinyLLaMA/TinyLLaMA-1.1B-Chat-v1.0"
+finetuned_model = "tinyllama-sop-lora"
+device = "cuda" if torch.cuda.is_available() else "cpu"
+output_dir = "outputs"
+log_dir = "logs"
+os.makedirs(output_dir, exist_ok=True)
+os.makedirs(log_dir, exist_ok=True)
+
+# === SETUP LOGGING ===
+session_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+session_log_path = os.path.join(log_dir, f"session_{session_time}.txt")
+
+def log_session(entry):
+    with open(session_log_path, "a") as log_file:
+        log_file.write(entry + "\n\n")
+
+# === LOAD MODEL ===
+tokenizer = AutoTokenizer.from_pretrained(finetuned_model)
+model = AutoModelForCausalLM.from_pretrained(
+    base_model, device_map="auto", torch_dtype=torch.float16
+)
+model = PeftModel.from_pretrained(model, finetuned_model)
+model.eval()
+
+# === HELPERS ===
+def get_word_count(text):
+    return len(text.split())
+
+def strip_letter_closings(text):
+    closing_patterns = [
+        r"thank you.*",
+        r"sincerely.*",
+        r"best regards.*",
+        r"yours truly.*",
+        r"kind regards.*",
+        r"please (do not )?hesitate to reach out.*",
+        r"i encourage you to.*",
+        r"i hope that you find.*",
+        r"i look forward to.*",
+        r"i would be delighted.*",
+        r"i am confident you will.*"
+    ]
+    for pattern in closing_patterns:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE | re.DOTALL)
+    return text.strip()
+
+# === MAIN LOOP ===
+while True:
+    print("\n New Prompt Session")
+    custom_prompt = input("\n Enter your SOP prompt (or 'exit' to quit):\n> ").strip()
+
+    if custom_prompt.lower() == "exit":
+        print(" Exiting session.")
+        break
+
+    if not custom_prompt:
+        print(" Prompt was empty. Skipping generation.")
+        continue
+
+    full_prompt = custom_prompt + "\n\nStatement of Purpose:\n"
+    inputs = tokenizer(full_prompt, return_tensors="pt").to(device)
+
+    print(" Generating SOP...")
+    with torch.no_grad():
+        output = model.generate(
+            **inputs,
+            max_new_tokens=750,
+            do_sample=True,
+            top_k=50,
+            top_p=0.95,
+            temperature=0.6,
+            repetition_penalty=1.3,
+            pad_token_id=tokenizer.eos_token_id or tokenizer.pad_token_id,
+            eos_token_id=tokenizer.eos_token_id or tokenizer.pad_token_id,
+        )
+
+    prompt_len = inputs["input_ids"].shape[-1]
+    generated_tokens = output[0][prompt_len:]
+    decoded = tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
+    cleaned = strip_letter_closings(decoded)
+
+    word_count = get_word_count(cleaned)
+
+    print("\n === Generated SOP ===\n")
+    print(cleaned)
+    print(f"\n Word count: {word_count}")
+    print("Reminder: Prompt should already restrict hallucinations (no university names or letter closings).")
+
+    # === LOG GENERATED OUTPUT ===
+    log_session(f"Prompt:\n{custom_prompt}")
+    log_session(f"Generated SOP:\n{cleaned}")
+    log_session(f"Word Count: {word_count}")
+
+    # === SAVE DECISION ===
+    while True:
+        save = input("\n Save this SOP? (y/n): ").strip().lower()
+        if save == "y":
+            topic = input(" Enter a topic or short name for the file (e.g., ai, data-science): ").strip()
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"sop_{topic}_{timestamp}.txt"
+            filepath = os.path.join(output_dir, filename)
+
+            with open(filepath, "w") as f:
+                f.write("=== Prompt Used ===\n")
+                f.write(custom_prompt + "\n\n")
+                f.write("=== Generated SOP ===\n")
+                f.write(cleaned + "\n\n")
+                f.write(f"Word count: {word_count}\n")
+                f.write(f"Saved on: {timestamp}\n")
+
+            print(f" Saved to: {filepath}")
+            log_session(f"Saved as: {filepath}")
+            break
+        elif save == "n":
+            print(" SOP discarded.")
+            log_session("SOP discarded by user.")
+            break
+        else:
+            print(" Please type 'y' or 'n'.")
+
+    input("\n Press Enter to test another prompt...")
