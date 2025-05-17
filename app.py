@@ -185,6 +185,8 @@ def daily_report():
     ]
     return jsonify(report)
 
+import os
+
 # ---------- Main ----------
 if __name__ == "__main__":
     init_db()
