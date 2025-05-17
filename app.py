@@ -41,6 +41,11 @@ def init_db():
         ''')
         conn.commit()
 
+@app.route("/", methods=["GET"])
+def home():
+    return "✅ Agaram Library API is running!"
+
+
 # ---------- Routes ----------
 @app.route("/students", methods=["POST"])
 def add_students():
