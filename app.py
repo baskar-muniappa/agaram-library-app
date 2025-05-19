@@ -164,6 +164,44 @@ def daily_report():
         rows = c.fetchall()
     return jsonify(rows)
 
+
+
+@app.route("/student/<int:student_id>", methods=["DELETE"])
+def delete_student(student_id):
+    with psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor) as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM students WHERE id = %s", (student_id,))
+        conn.commit()
+    return jsonify({"message": "Student deleted"})
+
+@app.route("/book/<string:barcode>", methods=["DELETE"])
+def delete_book(barcode):
+    with psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor) as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM books WHERE barcode = %s", (barcode,))
+        conn.commit()
+    return jsonify({"message": "Book deleted"})
+
+@app.route("/student/<int:student_id>", methods=["PUT"])
+def edit_student(student_id):
+    data = request.json
+    with psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor) as conn:
+        c = conn.cursor()
+        c.execute("UPDATE students SET first_name = %s, last_name = %s, class = %s WHERE id = %s",
+                  (data["first_name"], data["last_name"], data["class"], student_id))
+        conn.commit()
+    return jsonify({"message": "Student updated"})
+
+@app.route("/book/<string:barcode>", methods=["PUT"])
+def edit_book(barcode):
+    data = request.json
+    with psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor) as conn:
+        c = conn.cursor()
+        c.execute("UPDATE books SET title = %s WHERE barcode = %s",
+                  (data["title"], barcode))
+        conn.commit()
+    return jsonify({"message": "Book updated"})
+
 # ---------- Main ----------
 if __name__ == "__main__":
     init_db()
