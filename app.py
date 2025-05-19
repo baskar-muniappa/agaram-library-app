@@ -202,6 +202,35 @@ def edit_book(barcode):
         conn.commit()
     return jsonify({"message": "Book updated"})
 
+
+@app.route("/students/upsert", methods=["POST"])
+def upsert_students():
+    data = request.json  # List of students
+    with psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor) as conn:
+        c = conn.cursor()
+        for s in data:
+            student_id = s.get("id")
+            if student_id:
+                c.execute("UPDATE students SET first_name = %s, last_name = %s, class = %s WHERE id = %s",
+                          (s["first_name"], s["last_name"], s["class"], student_id))
+            else:
+                c.execute("INSERT INTO students (first_name, last_name, class) VALUES (%s, %s, %s)",
+                          (s["first_name"], s["last_name"], s["class"]))
+        conn.commit()
+    return jsonify({"message": "Upsert complete for students"})
+
+@app.route("/books/upsert", methods=["POST"])
+def upsert_books():
+    data = request.json  # List of books
+    with psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor) as conn:
+        c = conn.cursor()
+        for b in data:
+            c.execute("INSERT INTO books (title, barcode) VALUES (%s, %s) "
+                      "ON CONFLICT (barcode) DO UPDATE SET title = EXCLUDED.title",
+                      (b["title"], str(b["barcode"])))
+        conn.commit()
+    return jsonify({"message": "Upsert complete for books"})
+
 # ---------- Main ----------
 if __name__ == "__main__":
     init_db()
