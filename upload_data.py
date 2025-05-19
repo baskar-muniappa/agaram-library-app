@@ -1,50 +1,38 @@
 import pandas as pd
 import requests
 
-# Load Excel files
+API = "https://agaram-library-app.onrender.com"
+
+# --------- Load Book Data ---------
 books_df = pd.read_excel("Master-Books.xlsx")
-students_xls = pd.ExcelFile("Students.xlsx")
+books = books_df[["Title", "Bar Code"]].dropna()
+books.rename(columns={"Title": "title", "Bar Code": "barcode"}, inplace=True)
 
-# --- Prepare book data ---
-books = []
-for _, row in books_df.iterrows():
-    books.append({
-        "title": str(row["Title"]).strip(),
-        "barcode": str(row["Bar Code"]).strip()
-    })
+# Convert barcode to string
+books["barcode"] = books["barcode"].astype(str)
 
-# --- Prepare student data ---
+book_payload = books.to_dict(orient="records")
+r1 = requests.post(f"{API}/books", json=book_payload)
+print("Books upload:", r1.status_code, r1.json())
+
+# --------- Load Student Data ---------
+students_file = pd.ExcelFile("Students.xlsx")
 students = []
-for sheet in students_xls.sheet_names:
+
+for sheet in students_file.sheet_names:
     if sheet.lower() == "classroom":
         continue
-    df = students_xls.parse(sheet)
+    df = students_file.parse(sheet)
     for _, row in df.iterrows():
-        first = row.get("Student First Name (In English)")
-        last = row.get("Student Last Name (In English)")
-
-        # Replace NaN with empty strings
-        first = "" if pd.isna(first) else str(first).strip()
-        last = "" if pd.isna(last) else str(last).strip()
-
-        full_name = f"{first} {last}".strip()
-
-        if not full_name:  # Skip completely blank rows
+        first = str(row.get("First Name", "")).strip()
+        last = str(row.get("Last Name", "")).strip()
+        if not first and not last:
             continue
-
         students.append({
-            "first_name": first,
-            "last_name": last,
-            "class": sheet
+            "first_name": first or last,
+            "last_name": last or first,
+            "class": sheet.strip()
         })
 
-# --- Upload to API ---
-API = "http://localhost:5000"
-
-# Upload students
-r1 = requests.post(f"{API}/students", json=students)
-print("Student Upload:", r1.status_code, r1.json())
-
-# Upload books
-r2 = requests.post(f"{API}/books", json=books)
-print("Book Upload:", r2.status_code, r2.json())
+r2 = requests.post(f"{API}/students", json=students)
+print("Students upload:", r2.status_code, r2.json())
