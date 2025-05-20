@@ -232,23 +232,13 @@ def upsert_books():
     return jsonify({"message": "Upsert complete for books"})
 
 
-@app.route("/delete-all-students", methods=["POST"])
-def delete_all_students():
+@app.route("/books", methods=["GET"])
+def get_books():
     with psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor) as conn:
         c = conn.cursor()
-        c.execute("DELETE FROM transactions")
-        c.execute("DELETE FROM students")
-        conn.commit()
-    return jsonify({"message": "All students deleted"}), 200
-
-@app.route("/delete-all-books", methods=["POST"])
-def delete_all_books():
-    with psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor) as conn:
-        c = conn.cursor()
-        c.execute("DELETE FROM transactions")
-        c.execute("DELETE FROM books")
-        conn.commit()
-    return jsonify({"message": "All books deleted"}), 200
+        c.execute("SELECT id, title, barcode FROM books")
+        rows = c.fetchall()
+    return jsonify(rows)
 
 
 # ---------- Main ----------
