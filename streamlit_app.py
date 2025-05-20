@@ -52,7 +52,7 @@ if not st.session_state.logged_in:
             elif USERS[username] == password:
                 st.session_state.logged_in = True
                 st.session_state.username = username
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("❌ தவறான கடவுச்சொல்")
     st.stop()
@@ -60,6 +60,10 @@ if not st.session_state.logged_in:
 # ---------- Sidebar ----------
 st.sidebar.markdown(f"👤 Logged in as: **{st.session_state.username}**")
 menu = st.sidebar.radio("பக்கத் தேர்வுகள்", ["📚 Library", "⚙️ Admin", "📋 Lending Summary"], index=0)
+if st.sidebar.button("🔓 Logout"):
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+    st.rerun()
 
 # You can now paste the rest of your previous app (unchanged sections),
 # and where you had:
