@@ -82,7 +82,7 @@ if menu == "📚 Library":
     try:
     students = get_students()
 except Exception as e:
-    st.error(f"Failed to load students: {e}")
+    st.error(f"⚠️ Failed to load students: {e}")
     st.stop()
     if not students:
         st.warning("📭 மாணவர் பட்டியல் காலியாக உள்ளது.")
