@@ -1,11 +1,14 @@
-
 import streamlit as st
 import pandas as pd
 import requests
 from datetime import date
 import os
 
-# Auto-generate templates if missing
+# ---------- Config ----------
+API_BASE = "https://agaram-library-app.onrender.com"
+st.set_page_config(page_title="Agaram Library", layout="centered")
+
+# ---------- Templates ----------
 if not os.path.exists("student_upload_template_upsert.xlsx"):
     pd.DataFrame({
         "ID": [""],
@@ -20,10 +23,7 @@ if not os.path.exists("book_upload_template_upsert.xlsx"):
         "Barcode": ["BK002"]
     }).to_excel("book_upload_template_upsert.xlsx", index=False)
 
-API_BASE = "https://agaram-library-app.onrender.com"
-st.set_page_config(page_title="Agaram Library", layout="centered")
-
-# ---------- Login ----------
+# ---------- Users ----------
 USERS = {
     "Baskar": "serendipity",
     "Palani": "Palani123",
@@ -36,6 +36,7 @@ USERS = {
     "Ezhil": "Agaram"
 }
 
+# ---------- Session ----------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = ""
@@ -65,13 +66,60 @@ if st.sidebar.button("🔓 Logout"):
     st.session_state.username = ""
     st.rerun()
 
-# You can now paste the rest of your previous app (unchanged sections),
-# and where you had:
-# selected_student = student_map[selected_student_key]
-# Replace with:
-# selected_student = student_map.get(selected_student_key)
-# if not selected_student:
-#     st.warning("⚠️ Please select a valid student.")
-#     st.stop()
+# ---------- API Utilities ----------
+def get_students():
+    return requests.get(f"{API_BASE}/students").json()
 
-# Same for book_map access
+def get_loans(sid):
+    return requests.get(f"{API_BASE}/student-loans/{sid}").json()
+
+def get_books():
+    return requests.get(f"{API_BASE}/books").json()
+
+# ---------- Library ----------
+if menu == "📚 Library":
+    st.title("அகரம் தமிழ்ப்பள்ளி - நூலகச் செயலி")
+    try:
+    students = get_students()
+except Exception as e:
+    st.error(f"Failed to load students: {e}")
+    st.stop()
+    if not students:
+        st.warning("📭 மாணவர் பட்டியல் காலியாக உள்ளது.")
+        st.stop()
+
+    classes = sorted(set(s["class"] for s in students if s["class"]))
+    selected_class = st.selectbox("வகுப்பு (Classroom)", classes)
+
+    filtered_students = [s for s in students if s["class"] == selected_class]
+    student_names = [f"{s['first_name']} {s['last_name']}" for s in filtered_students]
+    selected_student = st.selectbox("மாணவர் (Student)", student_names)
+
+    student_lookup = {f"{s['first_name']} {s['last_name']}": s["id"] for s in filtered_students}
+    student_id = student_lookup.get(selected_student)
+    if not student_id:
+        st.warning("⚠️ Please select a valid student.")
+        st.stop()
+
+    barcode = st.text_input("📷 பார்கோடு (Barcode)")
+
+    if st.button("📤 வெளியீடு"):
+        resp = requests.post(f"{API_BASE}/checkout", json={"student_id": student_id, "barcode": barcode})
+        st.success("வெளியீடு செய்யப்பட்டது") if resp.ok else st.error(resp.json().get("error", "Error"))
+
+    if st.button("📥 மீட்பு"):
+        resp = requests.post(f"{API_BASE}/return", json={"barcode": barcode})
+        st.success("மீட்பு செய்யப்பட்டது") if resp.ok else st.error(resp.json().get("error", "Error"))
+
+    if student_id:
+        try:
+            loans = get_loans(student_id)
+        except Exception as e:
+            st.error(f"Failed to load loans: {e}")
+            st.stop()
+        if loans:
+            st.markdown(f"**📚 {loans[0]['title']}** — 📅 {loans[0]['checkout_date'][:10]}")
+        else:
+            st.info("தற்போது எடுக்கப்பட்ட புத்தகங்கள் இல்லை.")
+
+# (Other pages omitted for brevity — assumed unchanged from prior working version)
