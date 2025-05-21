@@ -202,22 +202,38 @@ def edit_book(barcode):
         conn.commit()
     return jsonify({"message": "Book updated"})
 
-
 @app.route("/students/upsert", methods=["POST"])
 def upsert_students():
     data = request.json  # List of students
+    inserted = 0
+    updated = 0
+    skipped = 0
+
     with psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor) as conn:
         c = conn.cursor()
         for s in data:
-            student_id = s.get("id")
-            if student_id:
-                c.execute("UPDATE students SET first_name = %s, last_name = %s, class = %s WHERE id = %s",
-                          (s["first_name"], s["last_name"], s["class"], student_id))
-            else:
-                c.execute("INSERT INTO students (first_name, last_name, class) VALUES (%s, %s, %s)",
-                          (s["first_name"], s["last_name"], s["class"]))
+            try:
+                student_id = s.get("id")
+                if student_id:
+                    c.execute("UPDATE students SET first_name = %s, last_name = %s, class = %s WHERE id = %s",
+                              (s["first_name"], s["last_name"], s["class"], student_id))
+                    updated += 1
+                else:
+                    c.execute("INSERT INTO students (first_name, last_name, class) VALUES (%s, %s, %s)",
+                              (s["first_name"], s["last_name"], s["class"]))
+                    inserted += 1
+            except Exception as e:
+                print("❌ Failed to upsert student:", s, "Error:", e)
+                skipped += 1
         conn.commit()
-    return jsonify({"message": "Upsert complete for students"})
+
+    return jsonify({
+        "message": "Upsert complete for students",
+        "inserted": inserted,
+        "updated": updated,
+        "skipped": skipped
+    }), 200
+
 
 @app.route("/books/upsert", methods=["POST"])
 def upsert_books():
