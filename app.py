@@ -215,8 +215,15 @@ def upsert_students():
             try:
                 student_id = s.get("id")
                 if student_id:
-                    c.execute("UPDATE students SET first_name = %s, last_name = %s, class = %s WHERE id = %s",
-                              (s["first_name"], s["last_name"], s["class"], student_id))
+                    # Insert with ID, or update if ID already exists
+                    c.execute("""
+                        INSERT INTO students (id, first_name, last_name, class)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (id)
+                        DO UPDATE SET first_name = EXCLUDED.first_name,
+                                      last_name = EXCLUDED.last_name,
+                                      class = EXCLUDED.class
+                    """, (student_id, s["first_name"], s["last_name"], s["class"]))
                     updated += 1
                 else:
                     c.execute("INSERT INTO students (first_name, last_name, class) VALUES (%s, %s, %s)",
